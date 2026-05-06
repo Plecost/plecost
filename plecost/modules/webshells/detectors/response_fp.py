@@ -20,7 +20,8 @@ _WSO_PARAMS = [b'name="a"', b'name="c"', b'name="charset"']
 
 # Core WP directories contain legitimate PHP files that output 0 bytes when accessed directly.
 # Applying the empty-body China Chopper fingerprint there causes false positives.
-_CORE_WP_DIRS = ("/wp-admin/", "/wp-includes/")
+# mu-plugins is excluded too: MuPluginsDetector has dedicated catch-all logic for that dir.
+_CORE_WP_DIRS = ("/wp-admin/", "/wp-includes/", "/wp-content/mu-plugins/")
 
 
 def _fingerprint(body: bytes, path: str = "") -> str | None:

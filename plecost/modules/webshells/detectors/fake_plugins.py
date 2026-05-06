@@ -52,16 +52,25 @@ class FakePluginRestDetector(BaseDetector):
             if slug in known_slugs:
                 continue  # legitimate plugin, already detected by plugins module
 
+            # In fast mode (top-150 wordlist) a legitimate plugin outside the top 150
+            # won't appear in ctx.plugins — use MEDIUM severity to avoid false HIGH alerts.
+            # In deep mode the full wordlist was used, so absence is genuinely suspicious.
+            sev = Severity.HIGH if ctx.opts.deep else Severity.MEDIUM
+            scan_note = (
+                "" if ctx.opts.deep
+                else " Note: fast scan mode was used — the plugin may simply be outside the "
+                     "top-150 wordlist and be entirely legitimate."
+            )
             findings.append(Finding(
                 id="PC-WSH-300",
                 remediation_id="REM-WSH-300",
                 title=f"Unrecognized plugin found via REST API: {slug}",
-                severity=Severity.HIGH,
+                severity=sev,
                 description=(
                     f"The WordPress REST API reports a plugin with slug `{slug}` "
                     f"(file: `{plugin_file}`) is installed and active. "
                     "This plugin was not detected during passive scanning, which can indicate "
-                    "a fake or hidden plugin used as a backdoor."
+                    f"a fake or hidden plugin used as a backdoor.{scan_note}"
                 ),
                 evidence={
                     "slug": slug,

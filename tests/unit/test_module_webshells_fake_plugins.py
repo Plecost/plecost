@@ -19,16 +19,29 @@ def _make_ctx_with_creds() -> ScanContext:
     return ctx
 
 
-async def test_detects_fake_plugin_not_in_ctx():
-    """A plugin returned by REST API but NOT in ctx.plugins is flagged."""
-    ctx = _make_ctx_with_creds()
-    rest_response = [
-        {
-            "plugin": "blnmrpb/index.php",
-            "name": "blnmrpb",
-            "status": "active",
-        }
-    ]
+async def test_detects_fake_plugin_not_in_ctx_fast_mode():
+    """Fast mode: unrecognized plugin → MEDIUM (may be outside top-150 wordlist)."""
+    ctx = _make_ctx_with_creds()  # deep=False by default
+    rest_response = [{"plugin": "blnmrpb/index.php", "name": "blnmrpb", "status": "active"}]
+    async with respx.mock:
+        respx.get("https://example.com/wp-json/wp/v2/plugins").mock(
+            return_value=httpx.Response(200, json=rest_response)
+        )
+        respx.route(url__regex=r".*").mock(return_value=httpx.Response(404))
+        async with PlecostHTTPClient(ctx.opts) as http:
+            findings = await FakePluginRestDetector().detect(ctx, http)
+    assert any(f.id == "PC-WSH-300" for f in findings)
+    assert any(f.severity == Severity.MEDIUM for f in findings)
+
+
+async def test_detects_fake_plugin_not_in_ctx_deep_mode():
+    """Deep mode: unrecognized plugin → HIGH (full wordlist used, absence is suspicious)."""
+    opts = ScanOptions(url="https://example.com", credentials=("admin", "secret"), deep=True)
+    ctx = ScanContext(opts)
+    ctx.is_wordpress = True
+    ctx.add_plugin(Plugin(slug="woocommerce", version="8.0.0", latest_version="8.0.0",
+                          url="https://example.com/wp-content/plugins/woocommerce/"))
+    rest_response = [{"plugin": "blnmrpb/index.php", "name": "blnmrpb", "status": "active"}]
     async with respx.mock:
         respx.get("https://example.com/wp-json/wp/v2/plugins").mock(
             return_value=httpx.Response(200, json=rest_response)

@@ -1,3 +1,13 @@
+## [4.2.7] — 2026-05-06
+
+### Fixed
+- **`ResponseFingerprintDetector` (PC-WSH-200)**: añadido `/wp-content/mu-plugins/` a `_CORE_WP_DIRS`. Los mu-plugins legítimos que definen funciones sin `echo` devuelven body vacío al accederse directamente — ya los cubre `MuPluginsDetector` con lógica catch-all más precisa. El fingerprint china_chopper ya no duplica detección con más FP en ese directorio.
+- **`KnownPathsDetector` (PC-WSH-001)**: saltados paths en `/wp-admin/` y `/wp-includes/` (fix previo completado).
+- **`FakePluginRestDetector` (PC-WSH-300)**: en modo fast (`--deep` no activo), la severidad es ahora `MEDIUM` en vez de `HIGH`. En modo fast se usa la wordlist top-150 y un plugin legítimo fuera de ese ranking no aparece en `ctx.plugins`, lo que generaba un HIGH falso. En modo deep (wordlist completa) la ausencia sigue siendo `HIGH`.
+
+### Tests
+- `test_module_webshells_fake_plugins.py`: dividido en `test_detects_fake_plugin_not_in_ctx_fast_mode` (espera MEDIUM) y `test_detects_fake_plugin_not_in_ctx_deep_mode` (espera HIGH).
+
 ## [4.2.6] — 2026-05-06
 
 ### Fixed
