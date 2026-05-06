@@ -9,6 +9,10 @@ from plecost.modules.webshells.wordlists import WEBSHELL_PATHS_FAST, WEBSHELL_PA
 _ALLOWED_CONTENT_TYPES = {"text/html", "text/plain", "application/x-httpd-php"}
 _PREFLIGHT_PATH = "/plecost-probe-nonexistent.php"
 
+# Core WP directories contain legitimate PHP files (image.php, update.php, etc.).
+# Flagging any 200 there would cause false positives — skip them for path-only detection.
+_CORE_WP_DIRS = ("/wp-admin/", "/wp-includes/")
+
 
 class KnownPathsDetector(BaseDetector):
     """
@@ -46,6 +50,8 @@ class KnownPathsDetector(BaseDetector):
         async def _probe(path: str) -> None:
             async with sem:
                 try:
+                    if any(path.startswith(d) for d in _CORE_WP_DIRS):
+                        return
                     url = ctx.url + path
                     r = await http.get(url)
                     if r.status_code != 200:
