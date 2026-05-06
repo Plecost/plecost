@@ -292,7 +292,7 @@ WPECommerceInfo {
   active_gateways: string[] -- Detected payment gateways (e.g. ["chronopay"]).
   checks_run:    string[]  -- Checks that were executed during the scan.
                            --   Possible values: "readme", "directories", "sensitive_files",
-                           --   "chronopay_endpoint"
+                           --   "chronopay_endpoint", "cve_2024_1514", "cve_2026_1235"
 }
 ```
 
