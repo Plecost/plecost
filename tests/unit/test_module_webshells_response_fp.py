@@ -107,6 +107,50 @@ async def test_no_false_positive_on_core_wp_empty_body():
     )
 
 
+async def test_no_false_positive_china_chopper_in_mu_plugins():
+    """Legitimate mu-plugins that output nothing (empty body) must NOT be flagged.
+    MuPluginsDetector has dedicated catch-all logic for that directory."""
+    ctx = ScanContext(ScanOptions(url="https://example.com"))
+    ctx.is_wordpress = True
+    mu_paths = [
+        "/wp-content/mu-plugins/functions.php",
+        "/wp-content/mu-plugins/object-cache.php",
+        "/wp-content/mu-plugins/advanced-cache.php",
+        "/wp-content/mu-plugins/config.php",
+    ]
+    async with respx.mock:
+        respx.get("https://example.com/plecost-probe-nonexistent.php").mock(
+            return_value=httpx.Response(404)
+        )
+        for p in mu_paths:
+            respx.get(f"https://example.com{p}").mock(
+                return_value=httpx.Response(200, content=b"", headers={"content-type": "text/html"})
+            )
+        respx.route(url__regex=r".*").mock(return_value=httpx.Response(404))
+        async with PlecostHTTPClient(ctx.opts) as http:
+            findings = await ResponseFingerprintDetector().detect(ctx, http)
+    fps = [f for f in findings if f.evidence.get("family") == "china_chopper"
+           and "mu-plugins" in f.evidence.get("url", "")]
+    assert fps == [], f"False china_chopper in mu-plugins: {[f.evidence['url'] for f in fps]}"
+
+
+async def test_china_chopper_still_detected_in_uploads():
+    """Empty-body china_chopper fingerprint must still fire in wp-content/uploads/."""
+    ctx = ScanContext(ScanOptions(url="https://example.com"))
+    ctx.is_wordpress = True
+    async with respx.mock:
+        respx.get("https://example.com/plecost-probe-nonexistent.php").mock(
+            return_value=httpx.Response(404)
+        )
+        respx.get("https://example.com/wp-content/uploads/shell.php").mock(
+            return_value=httpx.Response(200, content=b"", headers={"content-type": "text/html"})
+        )
+        respx.route(url__regex=r".*").mock(return_value=httpx.Response(404))
+        async with PlecostHTTPClient(ctx.opts) as http:
+            findings = await ResponseFingerprintDetector().detect(ctx, http)
+    assert any(f.evidence.get("family") == "china_chopper" for f in findings)
+
+
 async def test_no_finding_on_normal_html():
     """A 200 response with normal WordPress HTML must not trigger a finding."""
     ctx = ScanContext(ScanOptions(url="https://example.com"))

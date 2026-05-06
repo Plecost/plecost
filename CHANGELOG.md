@@ -7,6 +7,8 @@
 
 ### Tests
 - `test_module_webshells_fake_plugins.py`: dividido en `test_detects_fake_plugin_not_in_ctx_fast_mode` (espera MEDIUM) y `test_detects_fake_plugin_not_in_ctx_deep_mode` (espera HIGH).
+- `test_module_webshells_known_paths.py`: añadidos 3 tests de no-regresión: `test_no_finding_for_core_wp_admin_paths`, `test_no_finding_for_core_wp_includes_paths`, `test_still_detects_shell_in_uploads_after_core_exclusion`.
+- `test_module_webshells_response_fp.py`: añadidos `test_no_false_positive_china_chopper_in_mu_plugins` y `test_china_chopper_still_detected_in_uploads`.
 
 ## [4.2.6] — 2026-05-06
 

@@ -78,3 +78,56 @@ async def test_skips_when_catch_all_site(ctx):
             detector = KnownPathsDetector()
             findings = await detector.detect(ctx, http)
     assert findings == []
+
+
+async def test_no_finding_for_core_wp_admin_paths(ctx):
+    """wp-admin/includes/*.php are legitimate core WP files — must NOT emit PC-WSH-001."""
+    core_paths = [
+        "/wp-admin/includes/image.php",
+        "/wp-admin/includes/update.php",
+        "/wp-admin/css/colors.php",
+    ]
+    async with respx.mock:
+        respx.get("https://example.com/plecost-probe-nonexistent.php").mock(
+            return_value=httpx.Response(404)
+        )
+        for p in core_paths:
+            respx.get(f"https://example.com{p}").mock(
+                return_value=httpx.Response(200, content=b"", headers={"content-type": "text/html"})
+            )
+        respx.route(url__regex=r".*").mock(return_value=httpx.Response(404))
+        async with PlecostHTTPClient(ctx.opts) as http:
+            findings = await KnownPathsDetector().detect(ctx, http)
+    fps = [f for f in findings if any(p in f.evidence.get("url", "") for p in core_paths)]
+    assert fps == [], f"False positives on core WP paths: {[f.evidence['url'] for f in fps]}"
+
+
+async def test_no_finding_for_core_wp_includes_paths(ctx):
+    """wp-includes/ PHP files are legitimate — must NOT emit PC-WSH-001."""
+    async with respx.mock:
+        respx.get("https://example.com/plecost-probe-nonexistent.php").mock(
+            return_value=httpx.Response(404)
+        )
+        respx.get("https://example.com/wp-includes/images/image.php").mock(
+            return_value=httpx.Response(200, content=b"", headers={"content-type": "text/html"})
+        )
+        respx.route(url__regex=r".*").mock(return_value=httpx.Response(404))
+        async with PlecostHTTPClient(ctx.opts) as http:
+            findings = await KnownPathsDetector().detect(ctx, http)
+    fps = [f for f in findings if "wp-includes" in f.evidence.get("url", "")]
+    assert fps == [], f"False positives in wp-includes: {[f.evidence['url'] for f in fps]}"
+
+
+async def test_still_detects_shell_in_uploads_after_core_exclusion(ctx):
+    """Core dir exclusion must not suppress detection in wp-content/uploads/."""
+    async with respx.mock:
+        respx.get("https://example.com/plecost-probe-nonexistent.php").mock(
+            return_value=httpx.Response(404)
+        )
+        respx.get("https://example.com/wp-content/uploads/shell.php").mock(
+            return_value=httpx.Response(200, text="shell", headers={"content-type": "text/html"})
+        )
+        respx.route(url__regex=r".*").mock(return_value=httpx.Response(404))
+        async with PlecostHTTPClient(ctx.opts) as http:
+            findings = await KnownPathsDetector().detect(ctx, http)
+    assert any("uploads" in f.evidence.get("url", "") for f in findings)
