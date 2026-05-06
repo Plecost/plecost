@@ -80,6 +80,33 @@ async def test_detects_polyglot_image_php():
     assert any("polyglot" in f.evidence.get("family", "") for f in findings)
 
 
+async def test_no_false_positive_on_core_wp_empty_body():
+    """wp-admin/includes/image.php and similar core WP files return 200+empty body legitimately.
+    They must NOT be flagged as China Chopper."""
+    ctx = ScanContext(ScanOptions(url="https://example.com"))
+    ctx.is_wordpress = True
+    core_paths = [
+        "/wp-admin/includes/image.php",
+        "/wp-admin/css/colors.php",
+        "/wp-includes/images/blank.php",
+    ]
+    async with respx.mock:
+        respx.get("https://example.com/plecost-probe-nonexistent.php").mock(
+            return_value=httpx.Response(404)
+        )
+        for p in core_paths:
+            respx.get(f"https://example.com{p}").mock(
+                return_value=httpx.Response(200, content=b"", headers={"content-type": "text/html"})
+            )
+        respx.route(url__regex=r".*").mock(return_value=httpx.Response(404))
+        async with PlecostHTTPClient(ctx.opts) as http:
+            findings = await ResponseFingerprintDetector().detect(ctx, http)
+    china_chopper_fps = [f for f in findings if f.evidence.get("family") == "china_chopper"]
+    assert china_chopper_fps == [], (
+        f"False positives on core WP paths: {[f.evidence['url'] for f in china_chopper_fps]}"
+    )
+
+
 async def test_no_finding_on_normal_html():
     """A 200 response with normal WordPress HTML must not trigger a finding."""
     ctx = ScanContext(ScanOptions(url="https://example.com"))

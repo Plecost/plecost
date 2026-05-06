@@ -1,3 +1,11 @@
+## [4.2.6] — 2026-05-06
+
+### Fixed
+- **`ResponseFingerprintDetector` (PC-WSH-200)**: eliminado falso positivo de China Chopper en directorios del core de WordPress (`/wp-admin/`, `/wp-includes/`). Archivos legítimos como `wp-admin/includes/image.php` devuelven HTTP 200 con body vacío cuando se acceden directamente (sin parámetros ni nonce), lo que hacía coincidir erróneamente el fingerprint de China Chopper (`len(body) == 0`). Ahora el fingerprint de body vacío solo se aplica a directorios donde los atacantes sueltan shells (uploads, mu-plugins, raíz) — no a directorios del core.
+
+### Tests
+- Añadido `test_no_false_positive_on_core_wp_empty_body` en `tests/unit/test_module_webshells_response_fp.py`: verifica que `wp-admin/includes/image.php`, `wp-admin/css/*.php` y `wp-includes/images/*.php` con 200+body vacío no generan `PC-WSH-200 china_chopper`.
+
 ## [4.2.5] — 2026-04-27
 
 ### Added

@@ -18,11 +18,16 @@ _PHP_OPEN_TAG = b"<?php"
 # WSO parameter fingerprint — all 3 must be present
 _WSO_PARAMS = [b'name="a"', b'name="c"', b'name="charset"']
 
+# Core WP directories contain legitimate PHP files that output 0 bytes when accessed directly.
+# Applying the empty-body China Chopper fingerprint there causes false positives.
+_CORE_WP_DIRS = ("/wp-admin/", "/wp-includes/")
 
-def _fingerprint(body: bytes) -> str | None:
+
+def _fingerprint(body: bytes, path: str = "") -> str | None:
     """Return family name if body matches a known webshell fingerprint, else None."""
     # China Chopper: empty body (0 bytes)
-    if len(body) == 0:
+    # Skip core WP dirs — legitimate files there output nothing when hit without proper context.
+    if len(body) == 0 and not any(path.startswith(d) for d in _CORE_WP_DIRS):
         return "china_chopper"
 
     # Godzilla/Behinder response markers
@@ -93,7 +98,7 @@ class ResponseFingerprintDetector(BaseDetector):
                     ct = r.headers.get("content-type", "").split(";")[0].strip().lower()
                     if ct not in _ALLOWED_CONTENT_TYPES:
                         return
-                    family = _fingerprint(r.content)
+                    family = _fingerprint(r.content, path)
                     if family is None:
                         return
                     findings.append(Finding(
